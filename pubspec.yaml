@@ -1,0 +1,17 @@
+name: agentdeck
+description: An iPhone-first remote server and agent control center.
+publish_to: none
+version: 0.1.0+1
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+dependencies:
+  dartssh2: 4.1.0
+  flutter:
+    sdk: flutter
+  flutter_secure_storage: 11.2.0
+  path_provider: 2.1.6
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+flutter:
+  uses-material-design: true

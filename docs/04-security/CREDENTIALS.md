@@ -1,0 +1,9 @@
+# Credentials
+
+`ServerProfile` stores only opaque credential references. `PlatformSecureCredentialStore` adapts `flutter_secure_storage` 11.2.0, encoding byte values as base64 for its string API. Base64 is not encryption; the platform plugin is responsible for storage protection. Password and private-key content use a credential ID; an encrypted key's optional passphrase uses a separate ID. `SshConnectionService` resolves them immediately before authentication. The UI does not retrieve or re-display saved secrets.
+
+iOS options request `KeychainAccessibility.unlocked_this_device` and `synchronizable: false`; they intend access only while unlocked and no migration to another device. The iOS runner and actual Keychain behavior, capability/entitlements, device-lock response, backup/restore, reinstall and Face ID remain PENDING_MACOS_VALIDATION. Windows plugin support is present but no Windows runner or OS storage roundtrip was executed. No claim of OS cryptography is based on unit tests.
+
+Private-key PEM/OpenSSH text is pasted into a multiline field and is visible during entry; it is not written to a temporary file or copied to the clipboard by AgentDeck. The key must exist briefly in Dart memory for `dartssh2`, and immutable strings cannot be reliably zeroized. Never put secret values in source, JSON, SharedPreferences, plain SQLite, logs, crash messages, tests using real values or Git. The lab harness accepts disposable secrets only from external environment variables or an external key path and must not target production.
+
+Credential writes and profile-file writes are separate systems. A failed profile save attempts to remove new credential entries; interruption can leave recoverable incomplete state. Deletion removes credentials and trust before metadata so a failure retains a visible profile for retry. Review this behavior on device before shipping.

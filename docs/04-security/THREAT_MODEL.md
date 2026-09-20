@@ -1,0 +1,7 @@
+# Threat model
+
+Assets: SSH credentials, host trust records, server configuration, project source, agent output and production data. Adversaries include a network impostor, a lost/unlocked phone, a malicious server or repository, an overprivileged agent, accidental user commands and local modification of application data.
+
+Controls: explicit first trust with independently checked fingerprint, host-key pinning by hostname/port/algorithm/SHA256, changed/revoked key blocking, no automatic trust on reconnect, credential IDs outside profiles, OS-backed credential adapter, typed failure handling, bounded timeouts/retries and visible PRODUCTION context. Schema failures and corrupt trust records stop startup. No production secret literal or debug credential output is present.
+
+Residual risks: first trust depends on user verification; local app-support files rely on OS sandbox/file protection and are not tamper-evident against a compromised device or process. Backup/restore could pair stale trust metadata with non-migrating Keychain credentials; the app then fails credential lookup and should require re-entry, but this needs device validation. Partial multi-store operations can leave missing references or orphan entries. Private keys remain transiently in process memory. A lost unlocked phone and unrestricted shell require device lock, least-privilege SSH identities and server-side controls. iOS network/background behavior and live SSH interoperability are untested.

@@ -1,0 +1,12 @@
+analyzer:
+  errors:
+    invalid_assignment: error
+    missing_required_param: error
+    dead_code: warning
+  exclude:
+    - build/**
+linter:
+  rules:
+    - avoid_print
+    - prefer_const_constructors
+    - unnecessary_this
