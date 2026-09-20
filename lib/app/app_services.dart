@@ -12,14 +12,17 @@ import '../features/connections/infrastructure/file_known_host_repository.dart';
 import '../features/connections/infrastructure/platform_secure_credential_store.dart';
 import '../features/servers/domain/server_profile_repository.dart';
 import '../features/servers/infrastructure/file_server_profile_repository.dart';
+import '../features/tmux/domain/tmux_models.dart';
+import '../features/tmux/infrastructure/file_tmux_session_repository.dart';
 
 class AgentDeckServices {
-  AgentDeckServices._(
-      this.profiles, this.credentials, this.knownHosts, this.connection);
+  AgentDeckServices._(this.profiles, this.credentials, this.knownHosts,
+      this.tmuxReferences, this.connection);
 
   final ServerProfileRepository profiles;
   final SecureCredentialStore credentials;
   final KnownHostRepository knownHosts;
+  final TmuxSessionRepository tmuxReferences;
   final SshConnectionService connection;
 
   static Future<AgentDeckServices> bootstrap({
@@ -32,6 +35,8 @@ class AgentDeckServices {
         File('${root.path}${Platform.pathSeparator}agentdeck_profiles.json')));
     final hosts = FileKnownHostRepository(JsonFileStore(File(
         '${root.path}${Platform.pathSeparator}agentdeck_known_hosts.json')));
+    final tmuxReferences = FileTmuxSessionRepository(JsonFileStore(File(
+        '${root.path}${Platform.pathSeparator}agentdeck_tmux_references.json')));
     final credentials = PlatformSecureCredentialStore(secretBackend ??
         const FlutterSecureStorageBackend(FlutterSecureStorage(
           iOptions: IOSOptions(
@@ -42,12 +47,14 @@ class AgentDeckServices {
     // Fail closed on corrupt/unsupported local data. Never silently reset trust.
     await profiles.all();
     await hosts.readCheck();
+    await tmuxReferences.readCheck();
     final connection = SshConnectionService(
       credentials: credentials,
       knownHosts: hosts,
       transport: transport ?? const DartSshTransport(),
     );
-    return AgentDeckServices._(profiles, credentials, hosts, connection);
+    return AgentDeckServices._(
+        profiles, credentials, hosts, tmuxReferences, connection);
   }
 
   Future<void> dispose() => connection.dispose();

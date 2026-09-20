@@ -25,6 +25,7 @@ class _NavigationShellState extends State<NavigationShell> {
           credentials: widget.services?.credentials,
           knownHosts: widget.services?.knownHosts,
           connection: widget.services?.connection,
+          tmuxReferences: widget.services?.tmuxReferences,
         ),
         const ProjectsPage(),
         const AgentsPage(),

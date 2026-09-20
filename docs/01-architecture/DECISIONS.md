@@ -83,3 +83,27 @@ Decision: Pin `path_provider` 2.1.6 (BSD-3-Clause) to locate app-support storage
 Consequences: Files are not encrypted by AgentDeck; OS sandbox and file protection, backup/restore and local tampering require device review. Format upgrades must add explicit migrations rather than silently resetting data. Multiple processes/isolates writing the same files are not supported. If data changes outside the app while running, restart/reload is required.
 
 Alternatives: SharedPreferences (rejected for critical trust durability), SQLite/Isar/Hive (unnecessary schema and package weight at this scale), one combined file (unnecessary coupling between profiles and trust).
+
+## ADR-010 — Official xterm terminal emulator for M2
+
+Status: Accepted for M2 core; iOS device validation pending.
+
+Context: AgentDeck needs a VT/ANSI renderer, bounded scrollback, text selection and mobile keyboard input without coupling SSH or application logic to a widget. KAMMEL uses a modified copy of xterm 4 for keyboard suggestions and inline image paste; neither patch is needed for M2.
+
+Decision: Pin `xterm` 4.0.0 (MIT) without overrides. Keep `xterm.Terminal` and `TerminalView` in presentation. `TerminalController` consumes the domain `TerminalSession`, and `DartSshTransport` alone opens the SSH PTY. Use a 2000-line scrollback limit and explicit clipboard paste.
+
+Consequences: The original package is no longer actively maintained. iOS soft/hardware keyboard, touch selection, paste, rotation and lifecycle require real-device validation. A maintained MIT successor may be chosen after evidence. No KAMMEL code was copied.
+
+Alternatives: `xterm2` 5.2.0 (MIT, newer maintained fork), `terminal_view` 0.2.0 (MIT, young mobile fork), `xterm3` 6.3.0 (AGPL obligations), custom emulator (unnecessary parser and security work). See TERMINAL_RESEARCH.md.
+
+## ADR-011 — Pure SFTP & Remote Files Architecture
+
+Status: Accepted for M4 core; iOS document picker and share sheet pending.
+
+Context: AgentDeck requires remote directory browsing, file metadata inspection, streaming download/upload, basic text viewing/editing, directory creation, renaming, and safe deletion. Executing shell commands (`cat`, `rm`, `mv`, `mkdir`, `scp`) introduces severe command injection risks and depends on host binaries.
+
+Decision: Implement remote file management entirely via the SFTP subsystem of `dartssh2` 4.1.0 without invoking any remote shell commands or sudo escalation. Isolate SFTP infrastructure behind `RemoteFileSystem` and `RemoteFileService`. Centralize all remote path manipulation in POSIX-only `PosixPath`. Enforce atomic writes via temporary file upload and SFTP rename. Enforce production safety badges and explicit path confirmations for destructive actions.
+
+Consequences: SFTP subsystem must be available on the remote SSH server (internal-sftp or sftp-server). Operations are strictly bounded by user permissions without sudo. Native iOS document picker, share sheet, and app sandbox interactions are deferred to iOS platform validation.
+
+Alternatives considered: Shell commands over PTY/SSH exec (rejected for command injection vulnerabilities and inconsistent output parsing), SCP protocol (deprecated and legacy), custom file daemon (rejected to avoid remote agent requirements).

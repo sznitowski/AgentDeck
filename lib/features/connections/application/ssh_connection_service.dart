@@ -4,6 +4,7 @@ import 'dart:convert';
 import '../../../core/domain/agents.dart';
 import '../../../core/domain/profiles.dart';
 import '../../../core/domain/remote_contracts.dart';
+import '../../files/domain/remote_file_models.dart';
 import '../domain/ssh_models.dart';
 
 class SshConnectionService {
@@ -25,6 +26,7 @@ class SshConnectionService {
   Stream<ConnectionState> get states => _states.stream;
   ConnectionState state = ConnectionState.disconnected;
   SshFailure? lastFailure;
+  String? connectedProfileId;
   SshTransportHandle? _handle;
   int _generation = 0;
 
@@ -84,15 +86,18 @@ class SshConnectionService {
         throw const SshFailure(SshFailureKind.cancelled);
       }
       _handle = handle;
+      connectedProfileId = profile.id;
       _setState(ConnectionState.connected);
       unawaited(handle.done.then((_) {
         if (identical(_handle, handle)) {
           _handle = null;
+          connectedProfileId = null;
           _setState(ConnectionState.disconnected);
         }
       }, onError: (Object _) {
         if (identical(_handle, handle)) {
           _handle = null;
+          connectedProfileId = null;
           lastFailure = const SshFailure(SshFailureKind.closed);
           _setState(ConnectionState.disconnected);
         }
@@ -148,10 +153,76 @@ class SshConnectionService {
     return SshCredential.privateKey(secret, passphrase: passphrase);
   }
 
+  Future<TerminalSession> openTerminal(int columns, int rows) async {
+    final handle = _handle;
+    if (state != ConnectionState.connected ||
+        handle is! SshTerminalTransportHandle) {
+      throw const SshFailure(SshFailureKind.closed);
+    }
+    if (columns < 1 || rows < 1 || columns > 1000 || rows > 1000) {
+      throw const SshFailure(SshFailureKind.invalidProfile);
+    }
+    final session = await handle.openTerminal(columns, rows);
+    if (!identical(_handle, handle) || state != ConnectionState.connected) {
+      await session.close();
+      throw const SshFailure(SshFailureKind.closed);
+    }
+    return session;
+  }
+
+  Future<RemoteCommandResult> runRemoteCommand(List<String> arguments,
+      {Duration timeout = const Duration(seconds: 10)}) async {
+    final handle = _handle;
+    if (state != ConnectionState.connected ||
+        handle is! SshTmuxTransportHandle) {
+      throw const SshFailure(SshFailureKind.closed);
+    }
+    final result = await handle.run(arguments, timeout: timeout);
+    if (!identical(_handle, handle))
+      throw const SshFailure(SshFailureKind.closed);
+    return result;
+  }
+
+  Future<TerminalSession> attachTmux(String name, int columns, int rows) async {
+    final handle = _handle;
+    if (state != ConnectionState.connected ||
+        handle is! SshTmuxTransportHandle) {
+      throw const SshFailure(SshFailureKind.closed);
+    }
+    if (!RegExp(r'^ad_[a-f0-9]{16}$').hasMatch(name) ||
+        columns < 1 ||
+        rows < 1 ||
+        columns > 1000 ||
+        rows > 1000) {
+      throw const SshFailure(SshFailureKind.invalidProfile);
+    }
+    final session = await handle.attachTmux(name, columns, rows);
+    if (!identical(_handle, handle) || state != ConnectionState.connected) {
+      await session.close();
+      throw const SshFailure(SshFailureKind.closed);
+    }
+    return session;
+  }
+
+  Future<RemoteFileSystem> openSftp() async {
+    final handle = _handle;
+    if (state != ConnectionState.connected ||
+        handle is! SshSftpTransportHandle) {
+      throw const SshFailure(SshFailureKind.closed);
+    }
+    final fs = await handle.openSftp();
+    if (!identical(_handle, handle) || state != ConnectionState.connected) {
+      await fs.close();
+      throw const SshFailure(SshFailureKind.closed);
+    }
+    return fs;
+  }
+
   Future<void> disconnect() async {
     _generation++;
     final old = _handle;
     _handle = null;
+    connectedProfileId = null;
     if (old != null) {
       try {
         await old.close();
@@ -170,6 +241,7 @@ class SshConnectionService {
     final generation = ++_generation;
     final old = _handle;
     _handle = null;
+    connectedProfileId = null;
     if (old != null) await old.close();
     for (var attempt = 0; attempt < policy.maxAttempts; attempt++) {
       if (generation != _generation) {

@@ -10,6 +10,11 @@ import '../../core/domain/remote_contracts.dart';
 import '../connections/application/ssh_connection_service.dart';
 import '../connections/domain/ssh_models.dart';
 import 'domain/server_profile_repository.dart';
+import '../terminal/terminal_page.dart';
+import '../tmux/domain/tmux_models.dart';
+import '../tmux/persistent_sessions_page.dart';
+import '../files/application/remote_file_service.dart';
+import '../files/presentation/remote_files_page.dart';
 
 class ServersPage extends StatefulWidget {
   const ServersPage(
@@ -17,11 +22,13 @@ class ServersPage extends StatefulWidget {
       this.profiles,
       this.credentials,
       this.knownHosts,
-      this.connection});
+      this.connection,
+      this.tmuxReferences});
   final ServerProfileRepository? profiles;
   final SecureCredentialStore? credentials;
   final KnownHostRepository? knownHosts;
   final SshConnectionService? connection;
+  final TmuxSessionRepository? tmuxReferences;
 
   @override
   State<ServersPage> createState() => _ServersPageState();
@@ -186,6 +193,7 @@ class _ServersPageState extends State<ServersPage> {
       if (p.passphraseCredentialId != null)
         await widget.credentials!.delete(p.passphraseCredentialId!);
       await widget.knownHosts!.delete(p.host.trim().toLowerCase(), p.port);
+      await widget.tmuxReferences?.deleteServer(p.id);
       await widget.profiles!.delete(p.id);
       if (mounted) setState(() => _selected = null);
       await _load();
@@ -322,7 +330,7 @@ class _ServersPageState extends State<ServersPage> {
             icon: const Icon(Icons.add),
             tooltip: 'Add server')
       ]),
-      const Text('SSH connection · M1.5'),
+      const Text('SSH connection · M2 terminal'),
       if (!_ready)
         const Card(
             child: Padding(
@@ -360,7 +368,43 @@ class _ServersPageState extends State<ServersPage> {
         Text('connection: ${thisConnected ? 'CONNECTED' : state.name}'),
         if (thisConnected) ...[
           const Text('Host verification: Trusted'),
-          Text('Connected since: ${_connectedSince?.toLocal()}')
+          Text('Connected since: ${_connectedSince?.toLocal()}'),
+          FilledButton.icon(
+              onPressed: _busy
+                  ? null
+                  : () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                          builder: (_) => TerminalPage(
+                              profile: p, connection: widget.connection!))),
+              icon: const Icon(Icons.terminal),
+              label: const Text('Open Terminal')),
+          if (widget.tmuxReferences != null)
+            OutlinedButton.icon(
+                onPressed: _busy
+                    ? null
+                    : () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                            builder: (_) => PersistentSessionsPage(
+                                profile: p,
+                                connection: widget.connection!,
+                                references: widget.tmuxReferences!))),
+                icon: const Icon(Icons.view_list_outlined),
+                label: const Text('Persistent Sessions')),
+          OutlinedButton.icon(
+              onPressed: _busy
+                  ? null
+                  : () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                          builder: (_) => RemoteFilesPage(
+                              profile: p,
+                              service: RemoteFileService(
+                                  connection: widget.connection!,
+                                  serverId: p.id)))),
+              icon: const Icon(Icons.folder_open),
+              label: const Text('Browse Files')),
         ],
         const SizedBox(height: 12),
         Wrap(spacing: 8, runSpacing: 8, children: [

@@ -1,4 +1,6 @@
 import '../../../core/domain/profiles.dart';
+import '../../../core/domain/remote_contracts.dart';
+import '../../files/domain/remote_file_models.dart';
 
 enum SshFailureKind {
   invalidProfile,
@@ -158,6 +160,28 @@ class ReconnectPolicy {
 abstract interface class SshTransportHandle {
   Future<void> get done;
   Future<void> close();
+}
+
+abstract interface class SshTerminalTransportHandle extends SshTransportHandle {
+  Future<TerminalSession> openTerminal(int columns, int rows);
+}
+
+class RemoteCommandResult {
+  const RemoteCommandResult(this.exitCode, this.stdout, this.stderr);
+  final int exitCode;
+  final String stdout;
+  final String stderr;
+}
+
+abstract interface class SshTmuxTransportHandle
+    extends SshTerminalTransportHandle {
+  Future<RemoteCommandResult> run(List<String> arguments,
+      {Duration timeout = const Duration(seconds: 10)});
+  Future<TerminalSession> attachTmux(String name, int columns, int rows);
+}
+
+abstract interface class SshSftpTransportHandle extends SshTmuxTransportHandle {
+  Future<RemoteFileSystem> openSftp();
 }
 
 abstract interface class SshTransport {
