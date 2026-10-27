@@ -66,7 +66,8 @@ abstract interface class TmuxSessionRepository {
   Future<void> readCheck();
 }
 
-bool validTmuxName(String name) => RegExp(r'^ad_[a-f0-9]{16}$').hasMatch(name);
+bool validTmuxName(String name) =>
+    RegExp(r'^(ad_[a-f0-9]{16}|ad_agent_[a-zA-Z0-9_\-]{4,64})$').hasMatch(name);
 
 String newTmuxName([Random? random]) {
   final source = random ?? Random.secure();

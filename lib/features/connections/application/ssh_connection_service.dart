@@ -5,6 +5,7 @@ import '../../../core/domain/agents.dart';
 import '../../../core/domain/profiles.dart';
 import '../../../core/domain/remote_contracts.dart';
 import '../../files/domain/remote_file_models.dart';
+import '../../tmux/domain/tmux_models.dart';
 import '../domain/ssh_models.dart';
 
 class SshConnectionService {
@@ -189,7 +190,7 @@ class SshConnectionService {
         handle is! SshTmuxTransportHandle) {
       throw const SshFailure(SshFailureKind.closed);
     }
-    if (!RegExp(r'^ad_[a-f0-9]{16}$').hasMatch(name) ||
+    if (!validTmuxName(name) ||
         columns < 1 ||
         rows < 1 ||
         columns > 1000 ||

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8443,
+    "databasePath": "/var/lib/agentdeck/push-relay.db",
+    "lockPath": "/run/agentdeck/push-relay.pid"
+  },
+  "apns": {
+    "enabled": false,
+    "environment": "sandbox",
+    "teamId": "YOUR_TEAM_ID",
+    "keyId": "YOUR_KEY_ID",
+    "bundleId": "com.agentdeck.app",
+    "privateKeyPath": "/path/outside/repo/AuthKey.p8"
+  },
+  "security": {
+    "companionSecrets": {
+      "cmp_srv_lab": "lab_companion_secret_token_123"
+    }
+  }
+}

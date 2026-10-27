@@ -1,0 +1,15 @@
+#!/usr/bin/env python3
+"""AgentDeck Push Relay executable wrapper."""
+
+import sys
+from pathlib import Path
+
+# Add server root to sys.path
+_server_dir = Path(__file__).resolve().parent
+if str(_server_dir) not in sys.path:
+    sys.path.insert(0, str(_server_dir))
+
+from push_relay.cli import main
+
+if __name__ == "__main__":
+    main()

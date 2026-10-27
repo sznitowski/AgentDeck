@@ -5,6 +5,7 @@ analyzer:
     dead_code: warning
   exclude:
     - build/**
+    - ios/**
 linter:
   rules:
     - avoid_print

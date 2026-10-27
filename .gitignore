@@ -17,8 +17,12 @@ Thumbs.db
 
 # Local signing and secrets
 *.p12
+*.p8
 *.mobileprovision
 *.keystore
 *.jks
 .env
 .env.*
+*.db
+push-relay.json
+companion.json

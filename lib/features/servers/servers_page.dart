@@ -15,6 +15,7 @@ import '../tmux/domain/tmux_models.dart';
 import '../tmux/persistent_sessions_page.dart';
 import '../files/application/remote_file_service.dart';
 import '../files/presentation/remote_files_page.dart';
+import 'presentation/server_operations_page.dart';
 
 class ServersPage extends StatefulWidget {
   const ServersPage(
@@ -405,6 +406,16 @@ class _ServersPageState extends State<ServersPage> {
                                   serverId: p.id)))),
               icon: const Icon(Icons.folder_open),
               label: const Text('Browse Files')),
+          OutlinedButton.icon(
+              onPressed: _busy
+                  ? null
+                  : () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                          builder: (_) => ServerOperationsPage(
+                              server: p, connection: widget.connection))),
+              icon: const Icon(Icons.analytics_outlined),
+              label: const Text('Server Operations')),
         ],
         const SizedBox(height: 12),
         Wrap(spacing: 8, runSpacing: 8, children: [

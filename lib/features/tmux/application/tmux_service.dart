@@ -102,20 +102,24 @@ class TmuxService {
     return sessions;
   }
 
-  Future<TmuxSessionInfo> create(
-      {required String displayName,
-      String? projectId,
-      String? workingDirectory}) async {
+  Future<TmuxSessionInfo> create({
+    required String displayName,
+    String? projectId,
+    String? workingDirectory,
+    String? sessionName,
+    List<String>? initialCommand,
+  }) async {
     _checkConnection();
     final display = displayName.trim();
     if (display.isEmpty ||
         display.length > 80 ||
         display.contains(RegExp(r'[\x00-\x1f\x7f]')) ||
         (workingDirectory != null &&
-            !validWorkingDirectory(workingDirectory))) {
+            !validWorkingDirectory(workingDirectory)) ||
+        (sessionName != null && !validTmuxName(sessionName))) {
       throw const TmuxFailure('invalidInput');
     }
-    final name = newTmuxName();
+    final name = sessionName ?? newTmuxName();
     final args = [
       'tmux',
       '-u',
@@ -129,6 +133,9 @@ class TmuxService {
       '24'
     ];
     if (workingDirectory != null) args.addAll(['-c', workingDirectory]);
+    if (initialCommand != null && initialCommand.isNotEmpty) {
+      args.addAll(initialCommand);
+    }
     final result = await connection.runRemoteCommand(args);
     if (result.exitCode != 0) {
       throw TmuxFailure(

@@ -19,7 +19,9 @@ class _NavigationShellState extends State<NavigationShell> {
   int selectedIndex = 0;
 
   List<Widget> get pages => [
-        const HomePage(),
+        HomePage(
+          notifications: widget.services?.notifications,
+        ),
         ServersPage(
           profiles: widget.services?.profiles,
           credentials: widget.services?.credentials,
@@ -27,8 +29,17 @@ class _NavigationShellState extends State<NavigationShell> {
           connection: widget.services?.connection,
           tmuxReferences: widget.services?.tmuxReferences,
         ),
-        const ProjectsPage(),
-        const AgentsPage(),
+        ProjectsPage(
+          projects: widget.services?.projects,
+          servers: widget.services?.profiles,
+          connection: widget.services?.connection,
+          agents: widget.services?.agents,
+          notifications: widget.services?.notifications,
+        ),
+        AgentsPage(
+          coordinator: widget.services?.agents,
+          serverProfiles: widget.services?.profiles,
+        ),
         const SettingsPage(),
       ];
 

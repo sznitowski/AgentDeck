@@ -23,3 +23,15 @@ See TERMINAL_RESEARCH.md and ADR-010. New transitive dependencies are captured i
 ## M4 SFTP addition
 
 No new third-party packages or dependency overrides were added for M4. Existing `dartssh2 4.1.0` provides complete native SFTP v3 client capabilities (`SftpClient`, `SftpFile`, `SftpName`, streaming `read`/`write`, `mkdir`, `rename`, `remove`, `rmdir`, `stat`, `lstat`, `readlink`, `realpath`). See SFTP_RESEARCH.md and ADR-011.
+
+## M5 Agents addition
+
+No new third-party packages or dependency overrides were added for M5. Agent orchestration leverages existing pure Dart domain logic, regex pattern classifiers, and the existing SSH transport (`dartssh2 4.1.0`) / VT terminal emulator (`xterm 4.0.0`) infrastructure. See AGENT_PROVIDERS.md and ADR-012.
+
+## M6 Git addition
+
+No new third-party packages or dependency overrides were added for M6. Remote Git inspection and operations execute via pure Dart command orchestration over SSH (`git -C <workingDirectory>`) with machine-readable parsers (`--porcelain=v2`, log Unit Separators, unified diffs). See GIT_RESEARCH.md and ADR-013.
+
+## M7 Server Operations addition
+
+No new third-party packages or dependency overrides were added for M7. Server resource observability, procfs parsing, filesystem discovery, process inspection, and systemd service management execute via pure Dart parsers over the existing verified SSH transport (`dartssh2 4.1.0`). See SERVER_OPERATIONS_RESEARCH.md and ADR-014.

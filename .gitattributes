@@ -1,0 +1,58 @@
+# Auto-detect text files and normalize line endings to LF on commit
+* text=auto eol=lf
+
+# Source code
+*.dart text eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+*.bash text eol=lf
+*.ps1 text
+
+# Configuration, documentation, and data
+*.yaml text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.xml text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+
+# iOS / Xcode files
+*.xcconfig text eol=lf
+*.plist text eol=lf
+*.storyboard text eol=lf
+*.xib text eol=lf
+*.pbxproj text merge=union eol=lf
+*.xcscheme text eol=lf
+*.xcworkspacedata text eol=lf
+*.h text eol=lf
+*.m text eol=lf
+*.swift text eol=lf
+
+# Binary assets and graphics
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.svg text
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.jar binary
+*.zip binary
+*.tar binary
+*.gz binary
+*.dylib binary
+*.so binary
+*.a binary
+
+# Cryptographic and credential files (treated as binary for safety)
+*.p12 binary
+*.p8 binary
+*.mobileprovision binary
+*.keystore binary
+*.jks binary

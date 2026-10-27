@@ -1,0 +1,15 @@
+#!/usr/bin/env python3
+"""AgentDeck Server Companion executable entry point."""
+
+import os
+import sys
+
+# Ensure parent directory of agentdeck_companion is on sys.path
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+if _current_dir not in sys.path:
+    sys.path.insert(0, _current_dir)
+
+from agentdeck_companion.cli import main
+
+if __name__ == "__main__":
+    main()

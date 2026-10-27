@@ -1,7 +1,16 @@
 # Current context
 
-AgentDeck is an independent iPhone-first Flutter app at C:\Users\vszni\repositorios\AgentDeck. Flutter 3.47.5/Dart 3.13.4 is at C:\Users\vszni\sdk\flutter. M0, M1, M1.5, M1.6, M2, M3 and M4 core are DONE as of 2026-09-20.
+AgentDeck is an independent iPhone-first Flutter app at `C:\Users\vszni\repositorios\AgentDeck`. Flutter 3.47.5/Dart 3.13.4 is at `C:\Users\vszni\sdk\flutter`. M0 through M9 are complete, and the **Product / Security / iOS Release Readiness Review** is complete with status **`READY_FOR_MACOS_VALIDATION`** as of 2026-09-28.
 
-M4 adds remote file management via pure SFTP over verified SSH transport using `dartssh2` 4.1.0 without invoking remote shell commands or sudo. Layered architecture: Presentation (`RemoteFilesPage`, `FileViewerPage`) → Controller (`RemoteFilesController`) → Service (`RemoteFileService`) → Domain (`RemoteFileSystem`, `RemoteEntry`, `PosixPath`) ← Adapter (`DartSshSftpAdapter`). Capabilities include POSIX path sanitization, directory listing, metadata inspection, streaming download/upload, basic text viewing/editing, atomic save via temporary files, mkdir, rename, safe deletion with non-empty folder protection, sensitive file detection (`.env`, `*.key`), and persistent production environment warnings. A disposable Docker OpenSSH + SFTP lab passed all scenarios A–N (connect, list, mkdir, upload, stat, download SHA-256 match, UTF-8 filename, rename, permission denied error mapping, delete, non-empty directory delete rejection, cleanup, 25MB streaming transfer, 1000-entry listing). `dart format lib test tool`, `flutter analyze` (0 issues), and 58/58 unit & widget tests pass.
+Summary of Release Readiness Audit:
+- **Audit Scope**: Comprehensive evaluation across 88 dimensions covering architecture layering, service lifecycles, cryptographic trust models, credential boundaries, command injection defenses, data persistence, network failure recoveries, mobile UI/UX, and iOS release readiness.
+- **Stage Document**: Authored `docs/03-stages/RELEASE_READINESS_REVIEW.md` documenting architecture review, dependency graph, secret storage review, command injection defenses, persistence inventory, feature degradation matrix, and macOS handoff plan.
+- **Automated Test Results**:
+  - `flutter analyze`: 0 issues found (ran in 70.5s)
+  - `flutter test`: 172/172 PASS
+  - `python -m unittest`: 20/20 PASS
+  - `tool/push_lab.dart`: 14/14 PASS (Scenarios A through N)
+  - `dart format`: 100% compliant
+  - `git diff --check`: PASS
 
-PENDING_MACOS_VALIDATION: iOS runner/build/physical iPhone, Keychain, iOS Document Picker (`UIDocumentPickerViewController`), Share Sheet (`UIActivityViewController`), native app sandbox directories, virtual and hardware keyboard, touch selection, rotation, background network drops and transfer resumption. Do not claim iOS validation on macOS until physical/runner device validation is executed.
+PENDING_MACOS_VALIDATION: Physical iPhone, native iOS runner generation (`ios/`), Xcode signing, Apple Developer credentials, real APNs device token registration, physical lock-screen notification receipt, background/terminated app tap deep-linking, and canonical companion journal reconciliation on hardware. Do not claim iOS validation on macOS until physical/runner device validation is executed.

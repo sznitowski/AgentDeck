@@ -1,0 +1,37 @@
+[Unit]
+Description=AgentDeck Server Companion - Headless Remote Observer
+Documentation=https://github.com/agentdeck/agentdeck
+After=network.target tmux.service
+Wants=network.target
+
+[Service]
+Type=simple
+User=agentdeck
+Group=agentdeck
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/local/bin/agentdeck-companion run --config /etc/agentdeck/agentdeck-companion.json
+Restart=on-failure
+RestartSec=5s
+
+# Security Hardening Sandbox
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/agentdeck /run/agentdeck /var/log/agentdeck
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+# Resource Limits
+LimitNOFILE=4096
+MemoryMax=64M
+CPUQuota=10%
+
+[Install]
+WantedBy=multi-user.target
