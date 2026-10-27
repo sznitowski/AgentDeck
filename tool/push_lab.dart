@@ -23,13 +23,15 @@ void main() async {
     // -------------------------------------------------------------
     // START PUSH RELAY (Python process with FakePushProvider)
     // -------------------------------------------------------------
-    stdout.writeln('[SETUP] Starting AgentDeck Push Relay daemon...');
+    final pythonCmd = Platform.environment['PYTHON_CMD'] ??
+        (Platform.isWindows ? 'python' : 'python3');
     final pythonEnv = Map<String, String>.from(Platform.environment)
       ..['AGENTDECK_PUSH_DB'] = relayDb
-      ..['AGENTDECK_PUSH_PROVIDER'] = 'fake';
+      ..['AGENTDECK_PUSH_PROVIDER'] = 'fake'
+      ..['PYTHONDONTWRITEBYTECODE'] = '1';
 
     relayProcess = await Process.start(
-      'python',
+      pythonCmd,
       [
         '-m',
         'server.push_relay.cli',
@@ -268,7 +270,7 @@ void main() async {
     // Restart Push Relay
     stdout.writeln('  - Restarting Push Relay...');
     relayProcess = await Process.start(
-      'python',
+      pythonCmd,
       [
         '-m',
         'server.push_relay.cli',

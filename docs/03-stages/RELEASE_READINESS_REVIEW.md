@@ -1,11 +1,11 @@
 # AgentDeck — Product / Security / iOS Release Readiness Review
 
-**Document Version:** 1.0.0  
-**Audit Date:** 2026-09-28  
-**Evaluator:** Antigravity Pair-Programming Agent  
-**Repository:** `c:\Users\vszni\repositorios\AgentDeck`  
-**Milestone Scope:** M0 through M9 (Bootstrap to APNs / iOS Core)  
-**Final Status:** `READY_FOR_MACOS_VALIDATION`
+**Document Version:** 1.0.0
+**Audit Date:** 2026-09-28
+**Evaluator:** Antigravity Pair-Programming Agent
+**Repository:** `c:\Users\vszni\repositorios\AgentDeck`
+**Milestone Scope:** M0 through M9 (Bootstrap to APNs / iOS Core)
+**Final Status:** `CODEMAGIC_CONFIG_READY` (`REAL_APNS: PENDING_TESTFLIGHT_VALIDATION`)
 
 ---
 
@@ -374,42 +374,32 @@ The following test matrix will be executed on the physical macOS + iPhone workst
 
 ---
 
-## 19. macOS Handoff Execution Plan
+## 19. Codemagic Cloud CI & TestFlight Handoff Plan
 
-When transferring the repository to the macOS workstation:
+ To eliminate the need for a physical Mac, AgentDeck executes macOS compilation and signing via Codemagic Cloud CI:
 
-1. **Environment Setup**:
-   ```bash
-   git clone <repo-url> AgentDeck
-   cd AgentDeck
-   flutter doctor
-   ```
-2. **Generate iOS Runner**:
-   ```bash
-   flutter create --platforms=ios .
-   cd ios && pod install && cd ..
-   ```
-3. **Xcode Configuration**:
-   - Open `ios/Runner.xcworkspace` in Xcode.
-   - Configure **Signing & Capabilities**: Select Apple Developer Team, Bundle Identifier (`com.agentdeck.app`).
-   - Add **Push Notifications** and **Background Modes (Remote notifications)** capabilities.
-   - Add `aps-environment` entitlement (`development` for local testing, `production` for release).
-4. **Physical Device Installation**:
-   - Connect physical iPhone via USB/WiFi.
-   - Select device as target and run:
-     ```bash
-     flutter run -d <device_id>
-     ```
-5. **Execute Physical Test Matrix**: Run scenarios 1 through 18 from Section 15.
+ 1. **Gate 1: Unsigned iOS Cloud Validation (`ios-unsigned-validation`)**:
+    - Triggered via GitHub webhook on push to `main` (or manual trigger).
+    - Runs on Codemagic macOS `mac_mini_m2` instance.
+    - Executes `tool/ci_verify.sh` (pub get, format, analyze, Flutter tests, Python tests, push lab, git diff check).
+    - Runs `flutter build ios --debug --no-codesign` to verify CocoaPods synthesis and Xcode compilation.
+ 2. **Gate 2: Apple Developer Setup & TestFlight (`ios-testflight`)**:
+    - Add App Store Connect API credentials to Codemagic secret group `app_store_credentials`.
+    - Push git release tag (`v*`).
+    - Codemagic automatically provisions certificates and profiles, compiles release IPA, and uploads to TestFlight.
+ 3. **Gate 3: Physical Device Runtime Validation**:
+    - User installs build directly from TestFlight onto physical iPhone.
+    - Validate real Keychain roundtrip, real APNs device token registration, lock-screen notifications, and Companion journal synchronization.
 
----
+ ---
 
-## 20. Final Classification
+ ## 20. Final Classification
 
-```text
-================================================================================
-RELEASE READINESS CLASSIFICATION: READY_FOR_MACOS_VALIDATION
-================================================================================
-```
+ ```text
+ ================================================================================
+ RELEASE READINESS CLASSIFICATION: CODEMAGIC_CONFIG_READY
+ REAL_APNS: PENDING_TESTFLIGHT_VALIDATION
+ ================================================================================
+ ```
 
-AgentDeck satisfies all quality gates, security invariants, persistence rules, and architectural standards verifiable on the Windows host. The project is fully prepared to proceed to the **macOS + Xcode + Physical iPhone Validation** phase.
+ AgentDeck satisfies all quality gates, security invariants, persistence rules, and architectural standards verifiable on the Windows host. The cloud CI pipeline is fully scaffolded and ready for the **Codemagic macOS Build & TestFlight Validation** phase.

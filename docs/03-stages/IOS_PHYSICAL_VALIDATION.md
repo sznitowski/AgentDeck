@@ -1,26 +1,25 @@
 # AgentDeck — macOS + Xcode + Physical iPhone Validation Stage Report
 
-**Document Version:** 1.0.0  
-**Date:** 2026-09-28  
-**Evaluator:** Antigravity Pair-Programming Agent  
-**Repository:** `c:\Users\vszni\repositorios\AgentDeck`  
-**Milestone:** M9 — APNs / iOS Native Validation  
-**Current Status:** `IOS_VALIDATION_BLOCKED` (`PENDING_MACOS_HOST_EXECUTION`)
+**Document Version:** 1.1.0
+**Date:** 2026-10-27
+**Evaluator:** Antigravity Pair-Programming Agent
+**Repository:** `c:\Users\vszni\repositorios\AgentDeck`
+**Milestone:** M9 — APNs / iOS Native Validation
+**Current Status:** `CODEMAGIC_CONFIG_READY` (`PENDING_CODEMAGIC_CLOUD_BUILD` / `REAL_APNS: PENDING_TESTFLIGHT_VALIDATION`)
 
 ---
 
 ## 1. Environment & Pre-Flight Audit
 
-### Host System
+### Host System & Pipeline Architecture
 ```text
-OS:                   Microsoft Windows 11 Pro 64-bit (10.0.26200)
-Flutter:              3.47.5 (Channel stable) at C:\Users\vszni\sdk\flutter
-Dart:                 3.13.4
-Python:               3.12 (Standard Library)
-macOS Toolchain:      NOT_AVAILABLE_ON_WINDOWS_HOST
-Xcode:                NOT_AVAILABLE_ON_WINDOWS_HOST (Requires macOS)
-CocoaPods (pod):      NOT_AVAILABLE_ON_WINDOWS_HOST (Requires macOS)
-Physical iPhone:      PENDING_MACOS_CONNECTION
+Development Host:     Microsoft Windows 11 Pro 64-bit (Local workstation)
+Local Mac Required:   NO (Replaced by Codemagic macOS Runner)
+Cloud CI Host:        Codemagic macOS Runner (mac_mini_m2 / Apple Silicon)
+Flutter:              3.47.5 (Channel stable) pinned in codemagic.yaml
+Xcode:                Latest (Codemagic cloud macOS)
+CocoaPods:            Default (Managed automatically by Flutter on macOS)
+Physical iPhone:      Available for runtime testing via Apple TestFlight
 ```
 
 ### Pre-Flight Baseline Results
@@ -104,49 +103,37 @@ The native iOS workspace has been generated and configured:
 
 ## 6. Bugs & Blockers Log
 
-| ID | Severity | Area | Description | Status |
-|---|---|---|---|---|
-| **BLK-001** | P1 (Host Dependency) | macOS / Xcode | Code signing, CocoaPods resolution (`pod install`), and Xcode compilation require execution on a macOS host. | **PENDING_MACOS_TRANSFER** |
-| **BLK-002** | P1 (Hardware Dependency) | Physical iPhone | Real APNs device token registration, Keychain hardware roundtrip, and lock-screen alerts require a physical iPhone. | **PENDING_PHYSICAL_IPHONE** |
+ | ID | Severity | Area | Description | Status |
+ |---|---|---|---|---|
+ | **BLK-001** | P1 (Host Dependency) | macOS / Xcode | CocoaPods resolution and Xcode compilation are offloaded to Codemagic macOS runners (`mac_mini_m2`). | **RESOLVED_VIA_CODEMAGIC** |
+ | **BLK-002** | P1 (Hardware Dependency) | Physical iPhone | Real APNs device token registration, Keychain hardware roundtrip, and lock-screen alerts require delivery to physical iPhone via TestFlight. | **PENDING_TESTFLIGHT_DELIVERY** |
 
----
+ ---
 
-## 7. Next Action: macOS Execution Sequence
+ ## 7. Next Action: Cloud CI & TestFlight Execution Sequence
 
-To complete the pending physical validation matrix on the macOS machine:
+ 1. **Phase 1: Codemagic Unsigned Validation (`ios-unsigned-validation`)**:
+    - Trigger workflow on Codemagic using `mac_mini_m2`.
+    - Codemagic executes quality gates (`tool/ci_verify.sh`) and `flutter build ios --debug --no-codesign`.
+    - Confirms CocoaPods synthesis, Xcode project structure, and Swift/Dart compilation pass in the cloud.
+ 2. **Phase 2: Apple Developer Setup & Signing (`ios-testflight`)**:
+    - Acquire Apple Developer Program membership.
+    - Create App Store Connect API Key and configure Codemagic environment group `app_store_credentials`.
+    - Trigger tag build to generate signed release IPA and upload to TestFlight.
+ 3. **Phase 3: Physical iPhone Runtime Validation**:
+    - Install build on physical iPhone via TestFlight app.
+    - Execute Matrix Scenarios 1–22 (Keychain, APNs registration, lock-screen alerts, Companion catch-up).
 
-1. **Clone / Sync Repository**:
-   ```bash
-   git clone <repo-url> AgentDeck && cd AgentDeck
-   ```
-2. **Resolve CocoaPods**:
-   ```bash
-   cd ios && pod install && cd ..
-   ```
-3. **Open Xcode Workspace**:
-   ```bash
-   open ios/Runner.xcworkspace
-   ```
-4. **Configure Xcode Signing & Capabilities**:
-   - Select your authorized Apple Developer Team.
-   - Verify Bundle Identifier is `com.agentdeck.app`.
-   - Add **Push Notifications** capability.
-5. **Run on Physical iPhone**:
-   ```bash
-   flutter devices
-   flutter run -d <device_id>
-   ```
-6. **Execute Matrix Scenarios 1–22** and record results in this document.
+ ---
 
----
+ ## 8. Final Status
 
-## 8. Final Status
+ ```text
+ ================================================================================
+ VALIDATION CLASSIFICATION: CODEMAGIC_CONFIG_READY
+ REASON: PENDING_CODEMAGIC_CLOUD_BUILD (Cloud macOS execution & TestFlight pipeline)
+ REAL_APNS: PENDING_TESTFLIGHT_VALIDATION (Hardware iPhone receipt via TestFlight)
+ ================================================================================
+ ```
 
-```text
-================================================================================
-VALIDATION CLASSIFICATION: IOS_VALIDATION_BLOCKED
-REASON: PENDING_MACOS_HOST_EXECUTION (macOS + Xcode + Physical iPhone required)
-================================================================================
-```
-
-All software, configuration, and runner scaffolding are 100% prepared and pass all automated quality gates. Milestone M9 remains at **`M9_CORE_DONE`** until real physical iPhone test evidence is recorded.
+ All software, configuration, CI workflow definitions, and runner scaffolding are 100% prepared and pass all automated quality gates. Milestone M9 remains at **`M9_CORE_DONE`** until real physical iPhone test evidence is recorded via TestFlight.

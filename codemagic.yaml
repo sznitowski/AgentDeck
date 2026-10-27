@@ -1,0 +1,120 @@
+# ==============================================================================
+# AgentDeck Codemagic CI/CD Configuration
+# Target: iOS Build, Quality Gates & TestFlight Distribution
+# Architecture: Windows Development -> GitHub -> Codemagic macOS Runner -> iPhone
+# ==============================================================================
+
+workflows:
+  # ----------------------------------------------------------------------------
+  # WORKFLOW 1: iOS Unsigned Validation (First Cloud Quality Gate)
+  # ----------------------------------------------------------------------------
+  # Purpose: Verify that the entire AgentDeck repository, dependencies,
+  # CocoaPods integration, and Xcode Runner compile hermetically on macOS
+  # WITHOUT requiring Apple Developer credentials or signing profiles.
+  # ----------------------------------------------------------------------------
+  ios-unsigned-validation:
+    name: iOS Unsigned Build & Quality Gates
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      flutter: 3.47.5
+      xcode: latest
+      cocoapods: default
+    cache:
+      cache_paths:
+        - $FLUTTER_ROOT/.pub-cache
+        - $HOME/Library/Caches/CocoaPods
+    triggering:
+      events:
+        - push
+        - pull_request
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+      cancel_previous_builds: true
+    scripts:
+      - name: Display Host & Toolchain Info
+        script: |
+          echo "=== macOS Build Host Information ==="
+          sw_vers
+          xcodebuild -version
+          flutter --version
+          pod --version
+          python3 --version
+      - name: Run AgentDeck CI Quality Gates
+        script: |
+          bash tool/ci_verify.sh
+      - name: Build Unsigned iOS Runner
+        script: |
+          flutter build ios --debug --no-codesign
+    artifacts:
+      - build/ios/iphoneos/**/*.app
+      - /Users/builder/Library/Logs/gym/*.log
+
+  # ----------------------------------------------------------------------------
+  # WORKFLOW 2: iOS TestFlight Release Build (Future Gated Release)
+  # ----------------------------------------------------------------------------
+  # Purpose: Build a signed production IPA and distribute it to TestFlight
+  # for runtime validation on physical iPhones.
+  # NOTE: Requires Apple Developer Program account and App Store Connect API
+  # credentials configured in Codemagic environment variables / integrations.
+  # ----------------------------------------------------------------------------
+  ios-testflight:
+    name: iOS TestFlight Signed Release
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      groups:
+        - app_store_credentials # Defined in Codemagic UI: contains API key, Key ID, Issuer ID, Cert key
+      vars:
+        BUNDLE_ID: "com.agentdeck.app"
+        XCODE_WORKSPACE: "ios/Runner.xcworkspace"
+        XCODE_SCHEME: "Runner"
+        APP_STORE_APPLE_ID: 0000000000 # Placeholder: numerical Apple ID from App Store Connect
+      flutter: 3.47.5
+      xcode: latest
+      cocoapods: default
+    cache:
+      cache_paths:
+        - $FLUTTER_ROOT/.pub-cache
+        - $HOME/Library/Caches/CocoaPods
+    triggering:
+      events:
+        - tag
+      tag_patterns:
+        - pattern: 'v*'
+          include: true
+    scripts:
+      - name: Run AgentDeck CI Quality Gates
+        script: |
+          bash tool/ci_verify.sh
+      - name: Initialize Keychain for Signing
+        script: |
+          keychain initialize
+      - name: Fetch Apple Signing Profiles
+        script: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+      - name: Import Certificates to Keychain
+        script: |
+          keychain add-certificates
+      - name: Apply Profiles to Xcode Project
+        script: |
+          xcode-project use-profiles
+      - name: Build Signed Production IPA
+        script: |
+          flutter build ipa --release \
+            --build-name="0.1.0" \
+            --build-number="$BUILD_NUMBER"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /Users/builder/Library/Logs/gym/*.log
+    publishing:
+      app_store_connect:
+        auth: integration # Alternatively: api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        submit_to_testflight: true
+        expire_build_submitted_for_review: true
+        beta_groups:
+          - Internal Testers

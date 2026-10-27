@@ -26,3 +26,11 @@ Thumbs.db
 *.db
 push-relay.json
 companion.json
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.pytest_cache/
