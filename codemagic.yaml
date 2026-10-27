@@ -111,10 +111,16 @@ workflows:
     artifacts:
       - build/ios/ipa/*.ipa
       - /Users/builder/Library/Logs/gym/*.log
-    publishing:
-      app_store_connect:
-        auth: integration # Alternatively: api_key: $APP_STORE_CONNECT_PRIVATE_KEY
-        submit_to_testflight: true
-        expire_build_submitted_for_review: true
-        beta_groups:
-          - Internal Testers
+    # --------------------------------------------------------------------------
+    # Publishing to TestFlight (Configured after Apple Developer enrollment)
+    # --------------------------------------------------------------------------
+    # TODO: Enable App Store Connect publishing only after the real
+    # Codemagic App Store Connect integration has been configured in the UI.
+    #
+    # publishing:
+    #   app_store_connect:
+    #     auth: integration
+    #     submit_to_testflight: true
+    #     expire_build_submitted_for_review: true
+    #     beta_groups:
+    #       - Internal Testers
