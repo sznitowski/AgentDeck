@@ -1,40 +1,32 @@
 # Handoff
 
-## Completed
+## Completed (2026-11-21, stage H1.1 + H1.1b)
 
-**Codemagic CI/CD Scaffolding & Repository Hygiene Completed** (`CODEMAGIC_CONFIG_READY`, 2026-10-27).
-1. **Python Cache Cleanup & Hygiene**:
-   - Accidental `__pycache__` and `*.pyc` files scrubbed from working tree.
-   - Standard Python bytecode rules added to `.gitignore`.
-   - `.gitattributes` configured with `* text=auto eol=lf` and explicit binary declarations.
-2. **Codemagic CI/CD Architecture**:
-   - `codemagic.yaml` authored with dual workflows:
-     - `ios-unsigned-validation`: Gate 1 cloud verification on macOS `mac_mini_m2` (`flutter build ios --debug --no-codesign`).
-     - `ios-testflight`: Gate 2 signed release pipeline using App Store Connect automated signing.
-   - `tool/ci_verify.sh` and `tool/pre_ci_check.ps1` authored for automated cross-platform gate enforcement.
-   - Unit test `test/codemagic_config_test.dart` added and passing.
-3. **Research & Documentation**:
-   - `docs/06-research/CODEMAGIC_IOS_RESEARCH.md`: Exhaustive audit of plugins, CocoaPods behavior, and Codemagic toolchain.
-   - `docs/06-research/CODEMAGIC_SETUP.md`: Step-by-step instructions for dashboard setup and future TestFlight configuration.
-4. **Security Audit**:
-   - Zero Apple Developer secrets, zero `.p8`, `.p12`, or `.mobileprovision` files in repository.
-   - APNs `.p8` credential strictly isolated to the Push Relay server; excluded from CI and mobile client builds.
+Push Relay hardening and its real integration into the app. Design, review findings and decisions: `docs/03-stages/H1_RELAY_PAIRING.md`, ADR-019.
 
-## Validation Results
+1. **Relay (`server/push_relay/`)**: `pairing.py`; `store.py` (pairing_codes, installations, schema_meta, atomic exchange and migration with rollback); `server.py` (bearer auth, fail-closed companion auth, 64 KiB limit, sanitized 500, real health, loopback-only production bind, body drain on early errors, field validation); `cli.py` (`pairing create`, `installations list|revoke`, production default).
+2. **Companion**: `relay.url` must be `https://` (loopback `http://` allowed).
+3. **Flutter**:
+   - Settings tab is real (`SettingsPage` -> `NotificationSettingsPage`), wired from `NavigationShell` with the bootstrap services.
+   - `RelayConfigRepository` + `FileRelayConfigRepository` (`agentdeck_push_relay_config.json`): relay origin only, empty initially.
+   - `RelayUrlPolicy`: origin-only (no path/query/userinfo), HTTPS except loopback. One relay per origin; Keychain reference `push_relay_installation_token@<origin>`.
+   - `PushRelayPairingService`: token only in the Keychain; only a 401 deletes the current relay's token.
+   - `InstallationIdentity`: 128-bit `Random.secure()`, injectable random, legacy ids kept.
+   - Production push service is `UnavailablePushNotificationService` (never registers a fake token).
+   - `crypto` is a direct dev dependency (used by `tool/sftp_lab.dart`).
+4. **Labs/tests**: `tool/push_lab.dart` (A through Q, production-mode relay with real pairing); Python 20 -> 82; Dart 174 -> 240; two-user tmux lab `tool/companion_tmux_users_lab.sh`.
+5. **Docs**: README, PUSH_DEPLOYMENT (Caddy, pairing ops), PUSH_RELAY_PROTOCOL, ARCHITECTURE, DECISIONS (ADR-019), H1_RELAY_PAIRING.
 
-- `flutter pub get`: PASS
-- `dart format --output=none --set-exit-if-changed lib test tool`: PASS (0 format changes needed)
-- `flutter analyze`: PASS (0 issues found)
-- `flutter test`: PASS (174/174 unit & widget tests passed)
-- `Python Server Tests`: PASS (`server/tests/`: 20/20 PASS)
-- `Push Relay Lab` (`tool/push_lab.dart`): PASS (Scenarios A through N: 14/14 PASS).
-- `git diff --check`: PASS (0 errors)
+## Validation Results (executed 2026-11-21)
+
+- dart format: PASS; flutter analyze: PASS (0 issues); flutter test: 240/240 PASS
+- Python: 82 tests PASS on Windows (1 POSIX-only skip) and on Linux (WSL)
+- push lab A through Q: PASS; git diff --check: PASS
+- Docker labs: NOT RUN (daemon not running). Real VPS, Caddy, APNs, iPhone: NOT RUN.
 
 ## Pending / Next Step
 
-- Milestone: **Codemagic Cloud Execution & Physical iPhone Validation**
-- Execution Scope:
-  1. User triggers `ios-unsigned-validation` workflow on Codemagic dashboard.
-  2. Confirm cloud macOS runner successfully finishes CocoaPods resolution, Xcode project generation, and unsigned `.app` compilation.
-  3. Prepare Apple Developer Program account and configure `app_store_credentials` secret group in Codemagic.
-  4. Trigger `ios-testflight` release build and perform physical iPhone runtime validation via TestFlight.
+- Nothing is committed; the working tree holds all changes for review.
+- H1 part 2: Companion systemd user / `PrivateTmp` fix (confirmed by lab) with a systemd-level test; VPS provisioning scripts; validate `Caddyfile.example` with a real Caddy.
+- Decide silent notifications before touching `UIBackgroundModes`.
+- Native APNs (needs macOS/Apple), Codemagic runs, TestFlight. QR pairing needs a scanner dependency.

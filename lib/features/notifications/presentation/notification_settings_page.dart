@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import '../../../core/domain/events.dart';
 import '../../../core/domain/installation_identity.dart';
 import '../domain/notification_policy.dart';
+import '../application/push_relay_pairing_service.dart';
 import '../domain/push_device_registration.dart';
 import '../domain/push_notification_service.dart';
 import '../domain/push_relay_client.dart';
+import '../domain/relay_config_repository.dart';
+import '../domain/relay_url_policy.dart';
 
 /// Settings page for configuring Push Notifications, iOS permissions, and lock-screen privacy.
 class NotificationSettingsPage extends StatefulWidget {
@@ -13,19 +16,21 @@ class NotificationSettingsPage extends StatefulWidget {
     super.key,
     required this.pushService,
     required this.relayClient,
+    required this.pairing,
+    required this.relayConfig,
     required this.identityRepo,
     this.registrationRepo,
     this.policy,
-    this.relayUrl = 'http://127.0.0.1:8443',
     this.onPolicyChanged,
   });
 
   final PushNotificationService pushService;
   final PushRelayClient relayClient;
+  final PushRelayPairingService pairing;
   final InstallationIdentityRepository identityRepo;
   final PushRegistrationRepository? registrationRepo;
   final NotificationPolicy? policy;
-  final String relayUrl;
+  final RelayConfigRepository relayConfig;
   final ValueChanged<NotificationPolicy>? onPolicyChanged;
 
   @override
@@ -38,6 +43,9 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   String? _deviceToken;
   bool _loading = false;
   String? _relayStatus;
+  String? _relayUrl; // normalized origin; null = not configured
+  bool _paired = false;
+  String? _pairingMessage;
   late NotificationPolicy _policy;
 
   @override
@@ -51,14 +59,32 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     setState(() => _loading = true);
     final status = await widget.pushService.getAuthorizationStatus();
     final token = await widget.pushService.getDeviceToken();
-    final health =
-        await widget.relayClient.checkRelayHealth(relayUrl: widget.relayUrl);
+    final relayUrl = await widget.relayConfig.getRelayUrl();
+
+    // With no relay configured nothing is contacted: no health check, no pairing.
+    String? relayStatus;
+    var paired = false;
+    String? message;
+    if (relayUrl != null) {
+      final health =
+          await widget.relayClient.checkRelayHealth(relayUrl: relayUrl);
+      relayStatus = health['status'] as String? ?? 'offline';
+      paired = await widget.pairing.isPaired(relayUrl);
+      if (relayStatus == 'unreachable') {
+        message = 'The relay could not be reached.';
+      } else if (relayStatus == 'insecure_url') {
+        message = 'The relay URL must use HTTPS.';
+      }
+    }
 
     if (mounted) {
       setState(() {
         _status = status;
         _deviceToken = token;
-        _relayStatus = health['status'] as String? ?? 'offline';
+        _relayUrl = relayUrl;
+        _relayStatus = relayStatus;
+        _paired = paired;
+        _pairingMessage = message;
         _loading = false;
       });
     }
@@ -99,16 +125,30 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     final token = await widget.pushService.getDeviceToken();
 
     if (status == PushAuthorizationStatus.authorized && token != null) {
-      final identity = await widget.identityRepo.getIdentity();
-      final registration = PushDeviceRegistration(
-        installationId: identity.id,
-        deviceToken: token,
-        privacyMode: _policy.globalPreferences.privacyMode.name,
-      );
-      await widget.relayClient
-          .registerDevice(registration, relayUrl: widget.relayUrl);
-      if (widget.registrationRepo != null) {
-        await widget.registrationRepo!.saveRegistration(registration);
+      final relayUrl = _relayUrl;
+      if (relayUrl == null) {
+        _pairingMessage = 'Set the relay URL first.';
+      } else {
+        final identity = await widget.identityRepo.getIdentity();
+        final registration = PushDeviceRegistration(
+          installationId: identity.id,
+          deviceToken: token,
+          privacyMode: _policy.globalPreferences.privacyMode.name,
+        );
+        final result = await widget.pairing
+            .registerDevice(registration, relayUrl: relayUrl);
+        if (result.isOk) {
+          _pairingMessage = null;
+          if (widget.registrationRepo != null) {
+            await widget.registrationRepo!.saveRegistration(registration);
+          }
+        } else if (result.status == RelayCallStatus.unauthorized) {
+          _paired = false;
+          _pairingMessage =
+              'Pair this device with the relay to receive alerts.';
+        } else {
+          _pairingMessage = _describe(result.status);
+        }
       }
     }
 
@@ -119,6 +159,77 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
         _loading = false;
       });
     }
+  }
+
+  String _describe(RelayCallStatus status) {
+    switch (status) {
+      case RelayCallStatus.ok:
+        return 'Paired.';
+      case RelayCallStatus.invalidCode:
+        return 'Pairing code is invalid, expired or already used.';
+      case RelayCallStatus.rateLimited:
+        return 'Too many attempts. Wait a minute and try again.';
+      case RelayCallStatus.insecureUrl:
+        return 'The relay URL must use HTTPS.';
+      case RelayCallStatus.unreachable:
+        return 'The relay could not be reached.';
+      case RelayCallStatus.unauthorized:
+      case RelayCallStatus.forbidden:
+        return 'The relay rejected this installation. Pair again.';
+      case RelayCallStatus.rejected:
+        return 'The relay rejected the request.';
+    }
+  }
+
+  Future<void> _editRelayUrl() async {
+    final entered = await showDialog<String>(
+      context: context,
+      builder: (_) => _RelayUrlDialog(initial: _relayUrl ?? ''),
+    );
+    if (entered == null) return;
+    try {
+      await widget.relayConfig.setRelayUrl(entered);
+    } on ArgumentError {
+      if (!mounted) return;
+      setState(() => _pairingMessage = 'That relay URL is not allowed.');
+      return;
+    }
+    // Tokens of other relays stay in the Keychain untouched; the pairing state
+    // below is recomputed for the new origin only.
+    await _loadState();
+  }
+
+  Future<void> _pairWithCode() async {
+    final relayUrl = _relayUrl;
+    if (relayUrl == null) {
+      setState(() => _pairingMessage = 'Set the relay URL first.');
+      return;
+    }
+    final code = await showDialog<String>(
+      context: context,
+      builder: (_) => const _PairingCodeDialog(),
+    );
+    if (code == null || code.trim().isEmpty) return;
+
+    setState(() => _loading = true);
+    final status = await widget.pairing.pair(code, relayUrl: relayUrl);
+    if (!mounted) return;
+    setState(() {
+      _paired = status == RelayCallStatus.ok;
+      _pairingMessage = _paired ? null : _describe(status);
+      _loading = false;
+    });
+  }
+
+  Future<void> _forgetPairing() async {
+    final relayUrl = _relayUrl;
+    if (relayUrl == null) return;
+    await widget.pairing.forget(relayUrl);
+    if (!mounted) return;
+    setState(() {
+      _paired = false;
+      _pairingMessage = null;
+    });
   }
 
   void _updatePrivacyMode(NotificationPrivacyMode mode) {
@@ -232,7 +343,11 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
           'NOT REQUESTED',
           'AgentDeck has not requested permission yet.'
         ),
-      _ => (Colors.grey, 'UNKNOWN', 'Status could not be determined.'),
+      _ => (
+          Colors.grey,
+          'UNKNOWN',
+          'Native iOS push is not available in this build, or the status could not be determined.'
+        ),
     };
 
     return Card(
@@ -365,6 +480,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     final tokenPreview = _deviceToken != null && _deviceToken!.length >= 12
         ? '${_deviceToken!.substring(0, 6)}...${_deviceToken!.substring(_deviceToken!.length - 6)}'
         : 'Not Available';
+    final configured = _relayUrl != null;
 
     return Card(
       child: Padding(
@@ -378,7 +494,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                     style: TextStyle(fontWeight: FontWeight.bold)),
                 Expanded(
                   child: Text(
-                    widget.relayUrl,
+                    _relayUrl ?? 'Not configured',
+                    key: const Key('relay-endpoint'),
                     style:
                         const TextStyle(fontFamily: 'monospace', fontSize: 12),
                     overflow: TextOverflow.ellipsis,
@@ -392,12 +509,53 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                 const Text('Relay Status: ',
                     style: TextStyle(fontWeight: FontWeight.bold)),
                 Text(
-                  _relayStatus?.toUpperCase() ?? 'UNKNOWN',
+                  configured
+                      ? (_relayStatus?.toUpperCase() ?? 'UNKNOWN')
+                      : 'NOT CONFIGURED',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: _relayStatus == 'ok' ? Colors.green : Colors.orange,
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Text('Relay Pairing: ',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  _paired ? 'PAIRED' : 'NOT PAIRED',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: _paired ? Colors.green : Colors.orange,
+                  ),
+                ),
+              ],
+            ),
+            if (_pairingMessage != null) ...[
+              const SizedBox(height: 4),
+              Text(_pairingMessage!, style: theme.textTheme.bodySmall),
+            ],
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                OutlinedButton(
+                  key: const Key('edit-relay-url'),
+                  onPressed: _loading ? null : _editRelayUrl,
+                  child: Text(configured ? 'Edit relay URL' : 'Set relay URL'),
+                ),
+                if (!_paired)
+                  OutlinedButton(
+                    onPressed: _loading || !configured ? null : _pairWithCode,
+                    child: const Text('Pair with code'),
+                  )
+                else
+                  OutlinedButton(
+                    onPressed: _loading ? null : _forgetPairing,
+                    child: const Text('Forget pairing'),
+                  ),
               ],
             ),
             const SizedBox(height: 8),
@@ -414,6 +572,120 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Owns its [TextEditingController] so it is disposed together with the dialog.
+class _PairingCodeDialog extends StatefulWidget {
+  const _PairingCodeDialog();
+
+  @override
+  State<_PairingCodeDialog> createState() => _PairingCodeDialogState();
+}
+
+class _PairingCodeDialogState extends State<_PairingCodeDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Pair with Push Relay'),
+      content: TextField(
+        key: const Key('pairing-code-field'),
+        controller: _controller,
+        autocorrect: false,
+        enableSuggestions: false,
+        textCapitalization: TextCapitalization.characters,
+        decoration: const InputDecoration(
+          labelText: 'Pairing code',
+          hintText: 'ABCD-EFGH-IJKL-MNOP',
+          helperText:
+              'Generate it on the relay host. Single use, expires soon.',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text),
+          child: const Text('Pair'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Collects and validates the relay origin. Owns its controller.
+class _RelayUrlDialog extends StatefulWidget {
+  const _RelayUrlDialog({required this.initial});
+
+  final String initial;
+
+  @override
+  State<_RelayUrlDialog> createState() => _RelayUrlDialogState();
+}
+
+class _RelayUrlDialogState extends State<_RelayUrlDialog> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.initial);
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  static String _messageFor(RelayUrlProblem problem) => switch (problem) {
+        RelayUrlProblem.empty => 'Enter the relay URL.',
+        RelayUrlProblem.invalid =>
+          'Use an origin such as https://relay.example.com or https://relay.example.com:8443 (no path, query or credentials).',
+        RelayUrlProblem.insecure =>
+          'HTTPS is required. Plain HTTP is only allowed for localhost lab relays.',
+      };
+
+  void _save() {
+    final problem = RelayUrlPolicy.problem(_controller.text);
+    if (problem != null) {
+      setState(() => _error = _messageFor(problem));
+      return;
+    }
+    Navigator.of(context).pop(_controller.text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Push Relay URL'),
+      content: TextField(
+        key: const Key('relay-url-field'),
+        controller: _controller,
+        autocorrect: false,
+        enableSuggestions: false,
+        keyboardType: TextInputType.url,
+        decoration: InputDecoration(
+          labelText: 'Relay URL',
+          hintText: 'https://relay.example.com',
+          errorText: _error,
+          errorMaxLines: 4,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(onPressed: _save, child: const Text('Save')),
+      ],
     );
   }
 }

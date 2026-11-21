@@ -11,6 +11,16 @@ All request and response bodies utilize `schemaVersion: 1`.
 
 ---
 
+## 0. Authentication (updated 2026-11-21, stage H1.1)
+
+Device endpoints are authenticated; see `docs/03-stages/H1_RELAY_PAIRING.md` for the full design.
+
+- `POST /v1/pairing/exchange` — body `{"schemaVersion":1,"installationId":"inst_...","pairingCode":"ABCD-EFGH-IJKL-MNOP"}`; response `{"status":"paired","installationId":"...","installationToken":"adt_..."}`. Errors: `400 invalid_request`, `401 invalid_pairing_code` (unknown, expired and used are indistinguishable), `429 too_many_attempts`.
+- `POST /v1/devices/register` and `DELETE /v1/devices/by-token` require `Authorization: Bearer <installationToken>`. `installationId` in the body must match the token (`403 installation_mismatch`); deleting a token that belongs to another installation returns `404 not_found`. Missing/invalid/revoked token: `401 unauthorized`.
+- `POST /v1/companion-events` and `GET /v1/status` require `X-Companion-Id` and `X-Companion-Secret` (always enforced in production mode).
+- `GET /v1/health` is public and returns only `status`, `version` and the real `apnsConfigured` flag.
+- Request bodies are limited to 64 KiB (`413 payload_too_large`); `Content-Length` is required (`411 length_required`); chunked bodies are refused. Unhandled errors return `500 {"error":"internal_error"}`.
+
 ## 1. Device Registration Endpoints
 
 ### `POST /v1/devices/register`

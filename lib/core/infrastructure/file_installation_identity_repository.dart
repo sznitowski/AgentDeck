@@ -11,8 +11,11 @@ class FileInstallationIdentityRepository
   @override
   Future<InstallationIdentity> getIdentity() async {
     final items = await store.readAll();
-    if (items.isNotEmpty && items.first.containsKey('id')) {
-      return InstallationIdentity.fromJson(items.first);
+    if (items.isNotEmpty) {
+      final existing = InstallationIdentity.fromJson(items.first);
+      // Valid (current or legacy) identities are kept as-is; only a missing or
+      // malformed id is replaced.
+      if (InstallationIdentity.isValidId(existing.id)) return existing;
     }
     final newIdentity = InstallationIdentity.generate();
     await store.update((list) {

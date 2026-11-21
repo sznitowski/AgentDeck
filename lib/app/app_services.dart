@@ -14,6 +14,9 @@ import '../features/connections/infrastructure/dart_ssh_transport.dart';
 import '../features/connections/infrastructure/file_known_host_repository.dart';
 import '../features/connections/infrastructure/platform_secure_credential_store.dart';
 import '../features/notifications/application/notification_coordinator.dart';
+import '../features/notifications/application/push_relay_pairing_service.dart';
+import '../features/notifications/domain/relay_config_repository.dart';
+import '../features/notifications/infrastructure/file_relay_config_repository.dart';
 import '../features/notifications/domain/companion_cursor_repository.dart';
 import '../features/notifications/domain/event_repository.dart';
 import '../features/notifications/domain/remote_companion_client.dart';
@@ -54,6 +57,8 @@ class AgentDeckServices {
     required this.pushRegistrations,
     required this.pushService,
     required this.pushRelayClient,
+    required this.pushRelayPairing,
+    required this.relayConfig,
   });
 
   final ServerProfileRepository profiles;
@@ -72,6 +77,8 @@ class AgentDeckServices {
   final PushRegistrationRepository pushRegistrations;
   final PushNotificationService pushService;
   final PushRelayClient pushRelayClient;
+  final PushRelayPairingService pushRelayPairing;
+  final RelayConfigRepository relayConfig;
 
   static Future<AgentDeckServices> bootstrap({
     Directory? directory,
@@ -79,6 +86,7 @@ class AgentDeckServices {
     SshTransport? transport,
     PushNotificationService? pushNotificationService,
     PushRelayClient? pushRelay,
+    RelayConfigRepository? relayConfigRepository,
   }) async {
     final root = directory ?? await getApplicationSupportDirectory();
     final profiles = FileServerProfileRepository(JsonFileStore(
@@ -100,6 +108,9 @@ class AgentDeckServices {
             '${root.path}${Platform.pathSeparator}agentdeck_installation.json')));
     final pushRegistrations = FilePushRegistrationRepository(JsonFileStore(File(
         '${root.path}${Platform.pathSeparator}agentdeck_push_registration.json')));
+    final relayConfig = relayConfigRepository ??
+        FileRelayConfigRepository(JsonFileStore(File(
+            '${root.path}${Platform.pathSeparator}agentdeck_push_relay_config.json')));
     final credentials = PlatformSecureCredentialStore(secretBackend ??
         const FlutterSecureStorageBackend(FlutterSecureStorage(
           iOptions: IOSOptions(
@@ -117,6 +128,7 @@ class AgentDeckServices {
     await events.readCheck();
     await companionCursors.getLastSequence('__check__');
     await installationIdentity.getIdentity();
+    await relayConfig.readCheck();
 
     final connection = SshConnectionService(
       credentials: credentials,
@@ -139,8 +151,14 @@ class AgentDeckServices {
     );
 
     final pushService =
-        pushNotificationService ?? FakePushNotificationService();
+        pushNotificationService ?? const UnavailablePushNotificationService();
     final pushRelayClient = pushRelay ?? const HttpPushRelayClient();
+    // The installation token lives only in the Keychain-backed credential store.
+    final pushRelayPairing = PushRelayPairingService(
+      client: pushRelayClient,
+      credentials: credentials,
+      identity: installationIdentity,
+    );
 
     return AgentDeckServices._(
       profiles: profiles,
@@ -159,6 +177,8 @@ class AgentDeckServices {
       pushRegistrations: pushRegistrations,
       pushService: pushService,
       pushRelayClient: pushRelayClient,
+      pushRelayPairing: pushRelayPairing,
+      relayConfig: relayConfig,
     );
   }
 

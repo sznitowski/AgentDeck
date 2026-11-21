@@ -3,8 +3,10 @@
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
+import ipaddress
 import json
 import uuid
+from urllib.parse import urlparse
 
 
 SCHEMA_VERSION = 1
@@ -93,6 +95,24 @@ class CompanionRetention:
         }
 
 
+def is_secure_relay_url(url: str) -> bool:
+    """HTTPS is required for remote relays; plain HTTP is only allowed on loopback."""
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
+    if parsed.scheme == "https" and parsed.hostname:
+        return True
+    if parsed.scheme == "http" and parsed.hostname:
+        if parsed.hostname == "localhost":
+            return True
+        try:
+            return ipaddress.ip_address(parsed.hostname).is_loopback
+        except ValueError:
+            return False
+    return False
+
+
 @dataclass
 class CompanionRelayConfig:
     enabled: bool = False
@@ -104,7 +124,7 @@ class CompanionRelayConfig:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "CompanionRelayConfig":
-        return cls(
+        config = cls(
             enabled=bool(data.get("enabled", False)),
             url=str(data.get("url", "http://127.0.0.1:8443/v1/companion-events")),
             companion_id=str(data.get("companionId", "cmp_default")),
@@ -112,6 +132,11 @@ class CompanionRelayConfig:
             timeout_sec=int(data.get("timeoutSec", 5)),
             max_retries=int(data.get("maxRetries", 3)),
         )
+        if config.enabled and not is_secure_relay_url(config.url):
+            raise ValueError(
+                "relay.url must use https:// (plain http:// is only allowed for loopback)"
+            )
+        return config
 
     def to_dict(self) -> Dict[str, Any]:
         return {

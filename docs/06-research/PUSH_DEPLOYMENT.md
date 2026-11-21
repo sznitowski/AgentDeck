@@ -24,7 +24,7 @@ The **AgentDeck Push Relay** is a standalone, lightweight daemon responsible for
 {
   "schemaVersion": 1,
   "server": {
-    "host": "0.0.0.0",
+    "host": "127.0.0.1",
     "port": 8443,
     "databasePath": "/var/lib/agentdeck/push-relay.db",
     "lockPath": "/run/agentdeck/push-relay.pid"
@@ -38,17 +38,45 @@ The **AgentDeck Push Relay** is a standalone, lightweight daemon responsible for
     "privateKeyPath": "/etc/agentdeck/secrets/AuthKey.p8"
   },
   "security": {
+    "mode": "production",
     "companionSecrets": {
-      "cmp_srv_prod_1": "secret_token_1234567890abcdef",
-      "cmp_srv_prod_2": "secret_token_0987654321fedcba"
-    },
-    "rateLimits": {
-      "maxRequestsPerMinutePerDevice": 30,
-      "maxCompanionEventsPerMinute": 120
+      "cmp_srv_prod_1": "<random secret, 32+ chars>"
     }
   }
 }
 ```
+
+Fail-closed rules enforced at startup (the relay exits with code 2 otherwise):
+
+- `security.mode` defaults to `production`; it requires at least one companion secret (>= 16 chars).
+- `server.host` must be a loopback address. **TLS is terminated by Caddy**, not by the Python process.
+- On POSIX the config file must not be readable by group/others (`chmod 600`).
+- `security.mode: "development"` is for local labs only and is loopback-only.
+
+---
+
+## 2b. TLS with Caddy
+
+The relay listens on `127.0.0.1:8443` over plain HTTP. Caddy terminates TLS and proxies `/v1/*` (see `server/caddy/Caddyfile.example`; not validated against a real Caddy in this repository). Both clients refuse `http://` for non-loopback hosts, so the iPhone and any remote Companion must use the `https://` Caddy name. A Companion on the same host may use `http://127.0.0.1:8443` directly.
+
+The app supports **one relay per origin** (`https://relay.example.com` or `https://relay.example.com:8443`; plain HTTP only for loopback labs). Paths, query strings and credentials in the URL are rejected. The relay URL is entered in the app (Settings -> Push Notifications) and stored non-secretly on the phone; it is empty until configured.
+
+## 2c. Pairing and revoking devices
+
+No endpoint creates credentials; an administrator on the relay host does:
+
+```bash
+# 1. Generate a one-time code (expires in 10 minutes, shown once, never stored in plaintext)
+sudo -u agentdeck agentdeck-push-relay pairing create -c /etc/agentdeck/push-relay.json
+# 2. Enter the code in AgentDeck (Notification settings -> Pair with code)
+# 3. Inspect / revoke
+sudo -u agentdeck agentdeck-push-relay installations list -c /etc/agentdeck/push-relay.json
+sudo -u agentdeck agentdeck-push-relay installations revoke <installationId> -c /etc/agentdeck/push-relay.json
+```
+
+The app stores the resulting installation token in the iOS Keychain; the relay stores only its SHA-256. Registering, updating and removing APNs tokens requires that token.
+
+Upgrading an existing relay database: devices registered by the old unauthenticated protocol are disabled once at first start and must pair again.
 
 ---
 

@@ -122,13 +122,15 @@ class TestPushRelayHttpService(unittest.TestCase):
             return e.code, json.loads(e.read().decode("utf-8"))
 
     def test_device_register_endpoint(self):
+        code = self.store.create_pairing_code()["pairingCode"]
+        install_token = self.store.exchange_pairing_code(code, "inst_http_1")
         status, resp = self._post("/v1/devices/register", {
             "schemaVersion": 1,
             "installationId": "inst_http_1",
             "deviceToken": "token_http_12345",
             "platform": "ios",
             "privacyMode": "full",
-        })
+        }, headers={"Authorization": f"Bearer {install_token}"})
         self.assertEqual(status, 200)
         self.assertEqual(resp["status"], "registered")
         self.assertEqual(len(self.store.get_active_devices()), 1)

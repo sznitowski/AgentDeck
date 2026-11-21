@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "server": {
-    "host": "0.0.0.0",
+    "host": "127.0.0.1",
     "port": 8443,
     "databasePath": "/var/lib/agentdeck/push-relay.db",
     "lockPath": "/run/agentdeck/push-relay.pid"
@@ -15,8 +15,9 @@
     "privateKeyPath": "/path/outside/repo/AuthKey.p8"
   },
   "security": {
+    "mode": "production",
     "companionSecrets": {
-      "cmp_srv_lab": "lab_companion_secret_token_123"
+      "cmp_srv_example": "REPLACE_WITH_A_RANDOM_SECRET_OF_32+_CHARS"
     }
   }
 }

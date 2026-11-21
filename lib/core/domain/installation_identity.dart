@@ -1,8 +1,11 @@
-import 'dart:convert';
-import 'package:crypto/crypto.dart';
+import 'dart:math';
 
-/// Represents a stable, privacy-preserving installation identifier for the mobile app.
-/// This is an application-generated random UUID, NOT a hardware UDID or private device identifier.
+/// A stable, privacy-preserving installation identifier for the mobile app.
+///
+/// Generated from 128 bits of `Random.secure()`; it is NOT a hardware UDID or any
+/// other device identifier. Format: `inst_` + 32 lowercase hex characters.
+/// Identities created by earlier builds (`inst_` + 16 hex characters) remain valid
+/// and are never regenerated.
 class InstallationIdentity {
   const InstallationIdentity({
     required this.id,
@@ -12,16 +15,22 @@ class InstallationIdentity {
   final String id;
   final DateTime createdAt;
 
-  factory InstallationIdentity.generate({DateTime? now}) {
-    final dt = now ?? DateTime.now().toUtc();
-    final randomNonce = sha256
-        .convert(
-            utf8.encode('${dt.microsecondsSinceEpoch}_${dt.timeZoneOffset}'))
-        .toString()
-        .substring(0, 16);
+  static final _currentFormat = RegExp(r'^inst_[0-9a-f]{32}$');
+  static final _legacyFormat = RegExp(r'^inst_[0-9a-f]{16}$');
+
+  /// True for the current 128-bit format and the legacy 64-bit-hash format.
+  static bool isValidId(String id) =>
+      _currentFormat.hasMatch(id) || _legacyFormat.hasMatch(id);
+
+  /// Creates a new identity. [random] is injectable so tests can be deterministic;
+  /// production code must use the default [Random.secure].
+  factory InstallationIdentity.generate({DateTime? now, Random? random}) {
+    final rng = random ?? Random.secure();
+    final hex = List.generate(
+        16, (_) => rng.nextInt(256).toRadixString(16).padLeft(2, '0')).join();
     return InstallationIdentity(
-      id: 'inst_$randomNonce',
-      createdAt: dt,
+      id: 'inst_$hex',
+      createdAt: now ?? DateTime.now().toUtc(),
     );
   }
 

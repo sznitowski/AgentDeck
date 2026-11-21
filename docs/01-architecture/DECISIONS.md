@@ -238,3 +238,20 @@ Decision:
 Consequences: The entire push pipeline is cleanly decoupled across four explicit trust boundaries (Companion, Push Relay, APNs, Mobile App). Complete automated unit and lab tests (Scenarios A through N) validate all components in headless environments without Apple dependencies. Physical iPhone lock-screen verification is gated on macOS/Xcode environment.
 
 Alternatives considered: Direct APNs connection from every Linux host (rejected: severe private key exposure risk), Firebase Cloud Messaging (rejected: unnecessary third-party dependency for iOS-first architecture), Silent pushes for state updates (rejected: unreliable and aggressively throttled on iOS; visible alerts required for user action).
+
+## ADR-019 — Push Relay pairing, installation tokens and fail-closed configuration
+
+Date: 2026-11-21. Status: accepted (implemented in stage H1.1).
+
+Context: the audit found that the relay registered devices without authentication, authenticated Companions only if secrets happened to be configured, and was documented behind TLS it did not provide.
+
+Decision:
+1. Device operations require a per-installation opaque token obtained by exchanging a one-time, short-lived pairing code created by an administrator on the relay host. The relay stores only SHA-256 hashes; the app keeps the token in the Keychain.
+2. Revocation and code creation are CLI operations on the relay host (no HTTP admin surface).
+3. Production mode is the default and fails closed (companion secrets required, loopback bind only, config file mode checked).
+4. TLS is terminated by Caddy; the Python process does not serve TLS. Clients reject remote plain HTTP.
+5. Silent notifications / `UIBackgroundModes` remain undecided and nothing is added to `Info.plist` for them.
+
+Consequences: first registration is no longer open; existing unauthenticated registrations are disabled by migration; a relay without `companionSecrets` no longer starts. Pairing requires typing the code (QR needs a new dependency and is deferred).
+
+Alternatives considered: shared static secret entered in the app (rejected: permanent secret, no per-device revocation); open first-registration trust-on-first-use (rejected by requirement); mTLS (rejected for a first personal version: heavier certificate lifecycle).

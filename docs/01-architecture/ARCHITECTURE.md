@@ -91,12 +91,13 @@ The Server Companion (`agentdeck-companion`) operates as an autonomous, headless
 
 The APNs push notification pipeline enables real-time lock-screen alerts when remote agents need user input, even when the mobile app is terminated and SSH connections are closed:
 - **Topology & Trust Boundaries**:
-  - `Remote Linux Hosts`: Run `agentdeck-companion` with zero open inbound ports. On state transitions, the Companion Outbox pushes event envelopes outbound via `POST /v1/companion-events` over HTTPS/TLS to the central Push Relay.
+  - `Remote Linux Hosts`: Run `agentdeck-companion` with zero open inbound ports. On state transitions, the Companion Outbox pushes event envelopes outbound via `POST /v1/companion-events` to the central Push Relay through Caddy, which terminates TLS (the Python relay itself listens only on loopback; clients reject remote plain HTTP).
   - `AgentDeck Push Relay` (`server/push_relay/`): Central daemon in Python 3 managing device registrations, rotating ES256 JWT provider tokens (50-minute cache), APNs HTTP/2 requests, and deduplication.
   - `Apple APNs`: Direct Apple Push Notification service.
   - `iOS Mobile App`: Presentation (`NotificationSettingsPage`, deep link routing) → Application (`PushNotificationService`) → Domain (`PushDeviceRegistration`, `InstallationIdentity`, `PushRelayClient`) ← Infrastructure (`HttpPushRelayClient`, `FileInstallationIdentityRepository`, `FilePushRegistrationRepository`).
 - **Direct APNs (No Third-Party Intermediaries)**: Eliminates Firebase Cloud Messaging (FCM) and external push vendors to maximize iOS battery efficiency, minimize SDK bloat, and maintain direct trust boundaries.
 - **Provider Key Isolation**: The `.p8` Apple private key is stored exclusively in the Push Relay. It is never copied to remote Linux hosts, mobile apps, or git repositories.
+- **Device Pairing**: An administrator creates a one-time pairing code on the relay host; the app exchanges it over HTTPS for an opaque installation token (Keychain on the phone, SHA-256 only in the relay). Registering, updating and deleting APNs tokens requires that token, and tokens can be revoked from the relay (see `docs/03-stages/H1_RELAY_PAIRING.md`).
 - **Device Registration & Rotation**: Mobile generates an application-level random UUID `InstallationIdentity` (no hardware UDIDs) and registers its APNs device token. Reinstalls or token rotations gracefully overwrite prior token registrations.
 - **Idempotency & Dedup**: Push Relay deduplicates incoming events by `eventId` in a thread-safe SQLite database (`processed_events`).
 - **APNs Response Handling**: HTTP 200 logs delivery; HTTP 410 (`Unregistered`) automatically deactivates invalid device tokens in the registry; transient errors (429/503) trigger exponential backoff.

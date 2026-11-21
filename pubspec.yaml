@@ -12,6 +12,8 @@ dependencies:
   path_provider: 2.1.6
   xterm: 4.0.0
 dev_dependencies:
+  # Used directly by tool/sftp_lab.dart (previously only a transitive dependency).
+  crypto: 3.0.7
   flutter_test:
     sdk: flutter
 flutter:

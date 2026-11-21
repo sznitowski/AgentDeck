@@ -86,3 +86,39 @@ class FakePushNotificationService implements PushNotificationService {
     await _tapController.close();
   }
 }
+
+/// Production placeholder until native APNs registration exists.
+///
+/// It never authorizes and never returns a device token, so the app cannot
+/// register a fake token with a real relay. Pairing and relay configuration
+/// still work; only the iOS permission/token part is reported as unavailable.
+class UnavailablePushNotificationService implements PushNotificationService {
+  const UnavailablePushNotificationService();
+
+  @override
+  Future<PushAuthorizationStatus> getAuthorizationStatus() async =>
+      PushAuthorizationStatus.unknown;
+
+  @override
+  Future<PushAuthorizationStatus> requestAuthorization() async =>
+      PushAuthorizationStatus.unknown;
+
+  @override
+  Future<String?> getDeviceToken() async => null;
+
+  @override
+  Stream<String> get onTokenRefresh => const Stream.empty();
+
+  @override
+  Stream<PushNotificationPayload> get onForegroundNotification =>
+      const Stream.empty();
+
+  @override
+  Stream<NotificationDestination> get onNotificationTap => const Stream.empty();
+
+  @override
+  NotificationDestination? getPendingNotificationTap() => null;
+
+  @override
+  void clearPendingNotificationTap() {}
+}

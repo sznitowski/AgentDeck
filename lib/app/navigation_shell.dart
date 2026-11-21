@@ -40,7 +40,14 @@ class _NavigationShellState extends State<NavigationShell> {
           coordinator: widget.services?.agents,
           serverProfiles: widget.services?.profiles,
         ),
-        const SettingsPage(),
+        SettingsPage(
+          pushService: widget.services?.pushService,
+          pushRelayClient: widget.services?.pushRelayClient,
+          pushRelayPairing: widget.services?.pushRelayPairing,
+          installationIdentity: widget.services?.installationIdentity,
+          pushRegistrations: widget.services?.pushRegistrations,
+          relayConfig: widget.services?.relayConfig,
+        ),
       ];
 
   @override

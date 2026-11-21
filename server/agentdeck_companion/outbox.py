@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional
 import urllib.request
 import urllib.error
 
-from .models import CompanionEvent, CompanionRelayConfig, utc_now
+from .models import CompanionEvent, CompanionRelayConfig, is_secure_relay_url, utc_now
 
 logger = logging.getLogger("agentdeck.companion.outbox")
 
@@ -28,10 +28,13 @@ class CompanionOutbox:
     def __init__(self, config: CompanionRelayConfig):
         self.config = config
         self._queue: List[OutboxEntry] = []
+        self._url_blocked = bool(config.url) and not is_secure_relay_url(config.url)
+        if config.enabled and self._url_blocked:
+            logger.error("Refusing to use insecure relay URL; use https:// (loopback http:// is allowed)")
 
     @property
     def is_enabled(self) -> bool:
-        return self.config.enabled and bool(self.config.url)
+        return self.config.enabled and bool(self.config.url) and not self._url_blocked
 
     @property
     def pending_count(self) -> int:

@@ -1,0 +1,27 @@
+# Example only. TLS terminates here; the relay listens on 127.0.0.1:8443 (plain HTTP).
+# Replace relay.example.com with your DNS name. Caddy obtains and renews the
+# certificate automatically (ports 80/443 must be reachable).
+relay.example.com {
+	encode zstd gzip
+
+	# Only the routes the relay serves.
+	@relay path /v1/*
+	handle @relay {
+		request_body {
+			max_size 64KB
+		}
+		reverse_proxy 127.0.0.1:8443 {
+			transport http {
+				dial_timeout 3s
+				response_header_timeout 15s
+			}
+		}
+	}
+	respond 404
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		-Server
+	}
+}
